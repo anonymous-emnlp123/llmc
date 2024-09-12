@@ -1,45 +1,29 @@
+import gc
+import os
+
 import torch
+import torch.distributed as dist
 import torch.nn as nn
 from loguru import logger
-import gc
-from .module_utils import _LLMC_LN_TYPES_, _TRANSFORMERS_LN_TYPES_
-from .module_utils import _LLMC_LINEAR_TYPES_, _TRANSFORMERS_LINEAR_TYPES_
-from .module_utils import FakeQuantLinear
-from .base_blockwise_quantization import BaseBlockwiseQuantization
-from .utils import get_wquantizer, get_aquantizer, check_do_quant, check_w_only
+
 from llmc.utils.registry_factory import ALGO_REGISTRY
+
+from .base_blockwise_quantization import BaseBlockwiseQuantization
+from .module_utils import (_LLMC_LINEAR_TYPES_, _LLMC_LN_TYPES_,
+                           _TRANSFORMERS_LINEAR_TYPES_,
+                           _TRANSFORMERS_LN_TYPES_, FakeQuantLinear)
+from .utils import check_do_quant, check_w_only, get_aquantizer, get_wquantizer
 
 
 @ALGO_REGISTRY
 class Awq(BaseBlockwiseQuantization):
     def __init__(self, model, quant_config, input, config):
         super().__init__(model, quant_config, input, config)
-        if "special" in self.quant_config and "trans" in self.quant_config["special"]:
-            self.trans = self.quant_config["special"]["trans"]
-        else:
-            self.trans = True
-
-        if (
-            "special" in self.quant_config
-            and "trans_version" in self.quant_config["special"]
-        ):
-            self.trans_version = self.quant_config["special"]["trans_version"]
-        else:
-            self.trans_version = "v2"
-        if (
-            "special" in self.quant_config
-            and "weight_clip" in self.quant_config["special"]
-        ):
-            self.weight_clip = self.quant_config["special"]["weight_clip"]
-        else:
-            self.weight_clip = True
-        if (
-            "special" in self.quant_config
-            and "save_scale" in self.quant_config["special"]
-        ):
-            self.save_scale = self.quant_config["special"]["save_scale"]
-        else:
-            self.save_scale = False
+        special_config = self.quant_config.get('special', {})
+        self.trans = special_config.get('trans', True)
+        self.trans_version = special_config.get('trans_version', 'v2')
+        self.weight_clip = special_config.get('weight_clip', True)
+        self.save_scale = special_config.get('save_scale', False)
 
     @torch.no_grad()
     def get_weight_scale(self, layers_dict):
@@ -56,7 +40,10 @@ class Awq(BaseBlockwiseQuantization):
         )
         weights = wquantizer.reshape_tensor(weights)
         scale = weights.abs() / weights.abs().amax(dim=1, keepdim=True)
-        scale = scale.view(org_shape)
+        try:
+            scale = scale.view(org_shape)
+        except RuntimeError:
+            scale = wquantizer.restore_tensor(scale, org_shape)
         scale = scale.mean(0)
         del weights
         gc.collect()
@@ -79,7 +66,7 @@ class Awq(BaseBlockwiseQuantization):
     def search_scale_subset(self, layers_dict, input, inspect_module, subset_kwargs):
         w_max = self.get_weight_scale(layers_dict)
         # grid search for ratio
-        best_error = float("inf")
+        best_error = float('inf')
         best_scales = None
         n_grid = 20
         org_sd = {k: v.cpu() for k, v in inspect_module.state_dict().items()}
@@ -103,13 +90,13 @@ class Awq(BaseBlockwiseQuantization):
                 x_max = self.get_act_scale(x)
 
                 ratio = n * 1 / n_grid
-                if self.trans_version == "v1":
+                if self.trans_version == 'v1':
                     scales = (
                         (x_max.pow(ratio) / w_max.pow(1 - ratio))
                         .clamp(min=1e-4)
                         .view(-1)
                     )
-                elif self.trans_version == "v2":
+                elif self.trans_version == 'v2':
                     scales = x_max.pow(ratio).clamp(min=1e-4).view(-1)
                 scales = scales / (scales.max() * scales.min()).sqrt()
                 for layer_name in layers_dict:
@@ -139,7 +126,6 @@ class Awq(BaseBlockwiseQuantization):
                         self.quantizer_mix_bits,
                         self.aquantizer,
                     ).fake_quant_act_dynamic(x_tmp)
-
                 out = inspect_module(x_tmp, **kwargs)
 
                 if isinstance(out, tuple):
@@ -154,6 +140,8 @@ class Awq(BaseBlockwiseQuantization):
                 best_error = loss_mean
                 best_scales = scales_mean
         best_scales = best_scales.view(-1)
+        dist.all_reduce(best_scales, op=dist.ReduceOp.SUM)
+        best_scales /= int(os.environ['WORLD_SIZE'])
         del org_out_dict
         gc.collect()
         torch.cuda.empty_cache()
@@ -172,12 +160,12 @@ class Awq(BaseBlockwiseQuantization):
             super().block_transform(block, input_feat, block_kwargs)
 
         if self.weight_clip:
-            logger.info(f"auto_clip start")
-            logger.info(f"clip version: {self.clip_version}")
+            logger.info('auto_clip start')
+            logger.info(f'clip version: {self.clip_version}')
             self.auto_clip(block, input_feat, n_sample_token=self.config.calib.seq_len)
-            logger.info(f"auto_clip finished")
+            logger.info('auto_clip finished')
         else:
-            logger.info(f"disable weight clip")
+            logger.info('disable weight clip')
 
     @torch.no_grad()
     def subset_transform(
@@ -196,25 +184,25 @@ class Awq(BaseBlockwiseQuantization):
             self.quantizer_mix_bits,
         ):
             logger.info(
-                "This subset is set to float. No need to transform this subset."
+                'This subset is set to float. No need to transform this subset.'
             )
             return
-        if self.config["model"]["type"] == "Starcoder":
+        if self.config['model']['type'] == 'Starcoder':
             if isinstance(prev_op[0], (nn.Linear, FakeQuantLinear)):
-                logger.info("Do not transform this subset.")
+                logger.info('Do not transform this subset.')
                 return
 
         assert (
             len(prev_op) == 1
-        ), "Only support single prev_op. If multi prev_ops, code need to be updated."
+        ), 'Only support single prev_op. If multi prev_ops, code need to be updated.'
 
         if isinstance(
             prev_op[0],
             tuple(
-                _LLMC_LN_TYPES_
-                + _TRANSFORMERS_LN_TYPES_
-                + _LLMC_LINEAR_TYPES_
-                + _TRANSFORMERS_LINEAR_TYPES_
+                _LLMC_LN_TYPES_ +
+                _TRANSFORMERS_LN_TYPES_ +
+                _LLMC_LINEAR_TYPES_ +
+                _TRANSFORMERS_LINEAR_TYPES_
             ),
         ):
             layers = list(layers_dict.values())
@@ -224,7 +212,7 @@ class Awq(BaseBlockwiseQuantization):
                 and prev_op[0].out_features != layers[0].in_features * 3
                 and prev_op[0].out_features != layers[0].in_features
             ):
-                logger.info("Cannot apply scale. Do not transform this subset.")
+                logger.info('Cannot apply scale. Do not transform this subset.')
                 return
 
             scale = self.search_scale_subset(
@@ -236,7 +224,7 @@ class Awq(BaseBlockwiseQuantization):
 
             if self.save_scale:
                 for n in layers_dict:
-                    layer_name = f"{self.model.block_name_prefix}.{self.block_idx}.{n}"
+                    layer_name = f'{self.model.block_name_prefix}.{self.block_idx}.{n}'
                     self.act_scales[layer_name] = scale
         else:
-            logger.info("Do not transform this subset.")
+            logger.info('Do not transform this subset.')

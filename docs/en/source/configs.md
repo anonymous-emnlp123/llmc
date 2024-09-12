@@ -1,6 +1,6 @@
 # Configs' brief description
 
-All configurations can be found [here](https://github.com/ModelTC/llmc/tree/main/configs)
+All configurations can be found [here](https://github.com/anonymous-emnlp123/llmc/tree/main/configs)
 
 Here's a brief config example
 
@@ -55,7 +55,7 @@ Set Random Seed, which is used to set all random seeds for the entire frame
 
 <font color=792ee5> model.type </font>
 
-The type of model, which can support Llama, Qwen2, Llava, Gemma2 and other models, you can check all the models supported by llmc from [here](https://github.com/ModelTC/llmc/blob/main/llmc/models/__init__.py).
+The type of model, which can support Llama, Qwen2, Llava, Gemma2 and other models, you can check all the models supported by llmc from [here](https://github.com/anonymous-emnlp123/llmc/blob/main/llmc/models/__init__.py).
 
 <font color=792ee5> model.path </font>
 
@@ -150,11 +150,11 @@ data = load_from_disk(...)
 ```
 The LLMC has provided a download script for the above dataset
 
-The calibration dataset can be downloaded [here](https://github.com/ModelTC/llmc/blob/main/tools/download_calib_dataset.py).
+The calibration dataset can be downloaded [here](https://github.com/anonymous-emnlp123/llmc/blob/main/tools/download_calib_dataset.py).
 
 The execution command is `python download_calib_dataset.py --save_path [calib dataset save path]`
 
-The test dataset can be downloaded [here](https://github.com/ModelTC/llmc/blob/main/tools/download_eval_dataset.py).
+The test dataset can be downloaded [here](https://github.com/anonymous-emnlp123/llmc/blob/main/tools/download_eval_dataset.py).
 
  The execution command is `python download_eval_dataset.py --save_path [eval dataset save path]`
 
@@ -192,9 +192,9 @@ The preprocessing methods of calibration data are currently implemented by llmc 
 
 8. random_truncate_txt
 
-With the exception of general, the rest of the preprocessing can be found [here](https://github.com/ModelTC/llmc/blob/main/llmc/data/dataset/specified_preproc.py)
+With the exception of general, the rest of the preprocessing can be found [here](https://github.com/anonymous-emnlp123/llmc/blob/main/llmc/data/dataset/specified_preproc.py)
 
-general is implemented in the general_preproc function in the [base_dataset](https://github.com/ModelTC/llmc/blob/main/llmc/data/dataset/base_dataset.py)
+general is implemented in the general_preproc function in the [base_dataset](https://github.com/anonymous-emnlp123/llmc/blob/main/llmc/data/dataset/base_dataset.py)
 
 <font color=792ee5> calib.seed </font>
 
@@ -281,7 +281,7 @@ It should be noted that the names of multiple dataset evaluations need to be rep
     - c4
     - ptb
 
-If you use the LLMC [download script](https://github.com/ModelTC/llmc/blob/main/tools/download_eval_dataset.py) directly, the shared upper-level directory is the `--save_path` specified dataset storage path
+If you use the LLMC [download script](https://github.com/anonymous-emnlp123/llmc/blob/main/tools/download_eval_dataset.py) directly, the shared upper-level directory is the `--save_path` specified dataset storage path
 
 
 
@@ -290,7 +290,7 @@ If you use the LLMC [download script](https://github.com/ModelTC/llmc/blob/main/
 
 <font color=792ee5> quant.method </font>
 
-The names of the quantization algorithms used, and all the quantization algorithms supported by the LLMC, can be viewed [here](https://github.com/ModelTC/llmc/blob/main/llmc/compression/quantization/__init__.py).
+The names of the quantization algorithms used, and all the quantization algorithms supported by the LLMC, can be viewed [here](https://github.com/anonymous-emnlp123/llmc/blob/main/llmc/compression/quantization/__init__.py).
 
 
 <font color=792ee5> quant.weight </font>

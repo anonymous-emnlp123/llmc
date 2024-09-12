@@ -1,14 +1,18 @@
+import functools
+import gc
+from collections import defaultdict
+
 import torch
 import torch.nn as nn
 from loguru import logger
-import functools
-import gc
-from .base_blockwise_quantization import BaseBlockwiseQuantization
+
 from llmc.utils.registry_factory import ALGO_REGISTRY
-from .module_utils import _LLMC_LN_TYPES_, _TRANSFORMERS_LN_TYPES_
-from .module_utils import _LLMC_LINEAR_TYPES_, _TRANSFORMERS_LINEAR_TYPES_
-from .module_utils import FakeQuantLinear, OriginFloatLinear
-from collections import defaultdict
+
+from .base_blockwise_quantization import BaseBlockwiseQuantization
+from .module_utils import (_LLMC_LINEAR_TYPES_, _LLMC_LN_TYPES_,
+                           _TRANSFORMERS_LINEAR_TYPES_,
+                           _TRANSFORMERS_LN_TYPES_, FakeQuantLinear,
+                           OriginFloatLinear)
 
 
 @ALGO_REGISTRY
@@ -16,37 +20,23 @@ class OsPlus(BaseBlockwiseQuantization):
     def __init__(self, model, quant_config, input, config):
         torch.set_grad_enabled(False)
         super().__init__(model, quant_config, input, config)
-        if (
-            "special" in self.quant_config
-            and "weight_clip" in self.quant_config["special"]
-        ):
-            self.weight_clip = self.quant_config["special"]["weight_clip"]
-        else:
-            self.weight_clip = False
-        if (
-            "special" in self.quant_config
-            and "save_scale" in self.quant_config["special"]
-        ):
-            self.save_scale = self.quant_config["special"]["save_scale"]
-        else:
-            self.save_scale = False
+
+        special_config = self.quant_config.get('special', {})
+        self.weight_clip = special_config.get('weight_clip', False)
+        self.save_scale = special_config.get('save_scale', False)
 
     @torch.no_grad()
-    def filter_subset(self, subset, idx, len):
-        if self.weight_clip:
-            if idx == len - 1:
-                return False
-            else:
-                return True
-        else:
-            prev_op = subset["prev_op"]
-            if isinstance(prev_op[0], tuple(_LLMC_LN_TYPES_ + _TRANSFORMERS_LN_TYPES_)):
-                return True
-            else:
-                return False
+    def filter_subset(self, subset, idx, length):
+        if self.weight_clip and idx == length - 1:
+            return False
+        if self.weight_clip or isinstance(
+            subset['prev_op'][0], tuple(_LLMC_LN_TYPES_ + _TRANSFORMERS_LN_TYPES_)
+        ):
+            return True
+        return False
 
     def block_transform(self, block, input_feat, block_kwargs):
-        logger.info(f"Start transform the {self.block_idx}-th block")
+        logger.info(f'Start transform the {self.block_idx}-th block')
         subsets = self.model.get_subsets_in_block(block)
         named_linears = self.model.get_block_linears(block)
         name_list = list(named_linears.keys())
@@ -68,11 +58,11 @@ class OsPlus(BaseBlockwiseQuantization):
             input_feat_subset = defaultdict(list)
             register_hooks(input_feat_subset)
 
-            prev_op = subset["prev_op"]
-            layers_dict = subset["layers"]
-            input_name = subset["input"][0]
-            inspect_module = subset["inspect"]
-            inspect_has_kwargs = subset["has_kwargs"]
+            prev_op = subset['prev_op']
+            layers_dict = subset['layers']
+            input_name = subset['input'][0]
+            inspect_module = subset['inspect']
+            inspect_has_kwargs = subset['has_kwargs']
             subset_kwargs = block_kwargs if inspect_has_kwargs else {}
 
             if self.filter_subset(subset, index, len(subsets)):
@@ -85,12 +75,14 @@ class OsPlus(BaseBlockwiseQuantization):
                     subset_kwargs,
                 )
 
-            params_dict = {
-                "a_qdq": self.a_qdq if not self.w_only else None,
-                "w_qdq": self.w_qdq,
-            }
             self.model.replace_module_subset(
-                FakeQuantLinear, block, subset, self.block_idx, params_dict
+                FakeQuantLinear,
+                block,
+                subset,
+                self.block_idx,
+                self.get_replacement_params(
+                    mode='fake_quant', w_only=self.w_only, name=None
+                ),
             )
 
         if self.weight_clip:
@@ -101,11 +93,15 @@ class OsPlus(BaseBlockwiseQuantization):
             clip_input_feat = defaultdict(list)
             register_hooks(clip_input_feat)
 
-            logger.info("auto_clip start")
+            logger.info('auto_clip start')
 
-            params_dict = {"a_qdq": self.a_qdq, "w_qdq": self.w_qdq}
             self.model.replace_module_block(
-                FakeQuantLinear, block, self.block_idx, params_dict
+                FakeQuantLinear,
+                block,
+                self.block_idx,
+                self.get_replacement_params(
+                    mode='fake_quant', w_only=self.w_only, name=None
+                ),
             )
             self.auto_clip(
                 block,
@@ -114,12 +110,12 @@ class OsPlus(BaseBlockwiseQuantization):
                 eps=3e-1,
             )
 
-            logger.info("auto_clip finished")
+            logger.info('auto_clip finished')
         else:
-            logger.info("disable weight clip")
+            logger.info('disable weight clip')
 
         torch.cuda.empty_cache()
-        logger.info(f"End transform the {self.block_idx}-th block")
+        logger.info(f'End transform the {self.block_idx}-th block')
 
     @torch.no_grad()
     def get_original_out(self, x, inspect_module, subset_kwargs):
@@ -273,7 +269,7 @@ class OsPlus(BaseBlockwiseQuantization):
     ):
         assert (
             len(prev_op) == 1
-        ), "Only support single prev_op. If multi prev_ops, code need to be updated."
+        ), 'Only support single prev_op. If multi prev_ops, code need to be updated.'
 
         layers = list(layers_dict.values())
         logger.info(layers_dict)
@@ -284,7 +280,7 @@ class OsPlus(BaseBlockwiseQuantization):
             and prev_op[0].out_features != layers[0].in_features * 3
             and prev_op[0].out_features != layers[0].in_features
         ):
-            logger.info("Cannot apply scale. Do not transform this subset.")
+            logger.info('Cannot apply scale. Do not transform this subset.')
             return
 
         scale, shift = self.search_scale_shift_subset(
@@ -295,5 +291,5 @@ class OsPlus(BaseBlockwiseQuantization):
 
         if self.save_scale:
             for n in layers_dict:
-                layer_name = f"{self.model.block_name_prefix}.{self.block_idx}.{n}"
+                layer_name = f'{self.model.block_name_prefix}.{self.block_idx}.{n}'
                 self.act_scales[layer_name] = scale

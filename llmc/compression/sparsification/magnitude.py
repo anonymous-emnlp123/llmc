@@ -1,7 +1,9 @@
-from llmc.utils.registry_factory import ALGO_REGISTRY
-from .base_blockwise_sparsification import BaseBlockwiseSparsification
 import torch
 from loguru import logger
+
+from llmc.utils.registry_factory import ALGO_REGISTRY
+
+from .base_blockwise_sparsification import BaseBlockwiseSparsification
 
 
 @ALGO_REGISTRY
@@ -17,8 +19,7 @@ class Magnitude(BaseBlockwiseSparsification):
         prev_op,
         input_name,
         inspect_module,
-        subset_kwargs,
-        idx,
+        subset_kwargs
     ):
         layers = list(layers_dict.values())
         for layer in layers:

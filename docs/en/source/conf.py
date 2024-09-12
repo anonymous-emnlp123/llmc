@@ -8,10 +8,10 @@
 
 project = "llmc"
 copyright = "2024, llmc contributors"
-author = "ModelTC"
+author = "NoOne"
 release = "1.0.0"
 
-github_url = f"https://github.com/ModelTC/llmc"
+github_url = f"https://github.com/anonymous-emnlp123/llmc"
 
 html_context = {
     "display_github": True,
@@ -23,8 +23,8 @@ html_context = {
 html_theme_options = {
     "github_url": github_url,
     "doc_items": {
-        "paper": "https://arxiv.org/abs/2405.06001",
-        "institution": "https://github.com/ModelTC",
+        "xxx": "https://github.com/anonymous-emnlp123/llmc",
+        "xxx": "https://github.com/anonymous-emnlp123/llmc",
     },
     "logo": "images/logo/llmc.svg",
     "logo_dark": "images/logo/llmc.svg",

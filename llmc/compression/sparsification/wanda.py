@@ -1,8 +1,10 @@
-import torch.nn as nn
-from llmc.utils.registry_factory import ALGO_REGISTRY
-from .base_blockwise_sparsification import BaseBlockwiseSparsification
 import torch
+import torch.nn as nn
 from loguru import logger
+
+from llmc.utils.registry_factory import ALGO_REGISTRY
+
+from .base_blockwise_sparsification import BaseBlockwiseSparsification
 
 
 @ALGO_REGISTRY
@@ -12,7 +14,7 @@ class Wanda(BaseBlockwiseSparsification):
 
     @torch.no_grad()
     def get_row_scale(self, layer, act):
-        if len(act) == 2:
+        if len(act.shape) == 2:
             act = act.unsqueeze(0)
         nsamples = act.shape[0]
         if isinstance(layer, nn.Linear):
@@ -36,8 +38,7 @@ class Wanda(BaseBlockwiseSparsification):
         prev_op,
         input_name,
         inspect_module,
-        subset_kwargs,
-        idx,
+        subset_kwargs
     ):
         layers = list(layers_dict.values())
         for layer in layers:
@@ -48,8 +49,8 @@ class Wanda(BaseBlockwiseSparsification):
 
             W_mask = (
                 torch.zeros_like(W_metric) == 1
-            )  ## initialize a mask to be all False
+            )  # initialize a mask to be all False
             sort_res = torch.sort(W_metric, dim=-1, stable=True)
             indices = sort_res[1][:, : int(W_metric.shape[1] * self.sparser.sparsity)]
             W_mask.scatter_(1, indices, True)
-            layer.weight.data[W_mask] = 0  ## set weights to zero
+            layer.weight.data[W_mask] = 0  # set weights to zero

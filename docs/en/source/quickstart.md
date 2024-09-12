@@ -1,7 +1,7 @@
 # Installation of llmc
 
 ```
-git clone https://github.com/ModelTC/llmc.git
+git clone https://github.com/anonymous-emnlp123/llmc.git
 pip install -r requirements.txt
 ```
 
@@ -23,14 +23,14 @@ HF_HUB_ENABLE_HF_TRANSFER=1 huggingface-cli download --resume-download Qwen/Qwen
 
 # Download the datasets
 
-The datasets required by llmc can be divided into calibration datasets and eval datasets. The calibration dataset can be downloaded [here](https://github.com/ModelTC/llmc/blob/main/tools/download_calib_dataset.py), and the eval dataset can be downloaded [here](https://github.com/ModelTC/llmc/blob/main/tools/download_eval_dataset.py).
+The datasets required by llmc can be divided into calibration datasets and eval datasets. The calibration dataset can be downloaded [here](https://github.com/anonymous-emnlp123/llmc/blob/main/tools/download_calib_dataset.py), and the eval dataset can be downloaded [here](https://github.com/anonymous-emnlp123/llmc/blob/main/tools/download_eval_dataset.py).
 
 Of course, llmc also supports online download of datasets, as long as the download in the config is set to True.
 
 
 # Set Configs
 
-In the case of smoothquant, the config is [here](https://github.com/ModelTC/llmc/blob/main/configs/quantization/SmoothQuant/smoothquant_llama_w8a8_fakequant_eval.yml).
+In the case of smoothquant, the config is [here](https://github.com/anonymous-emnlp123/llmc/blob/main/configs/quantization/SmoothQuant/smoothquant_llama_w8a8_fakequant_eval.yml).
 
 ```
 base:
@@ -76,9 +76,9 @@ Once you are prepared above, you can run the following commands
 ```
 PYTHONPATH=[llmc's save path]:$PYTHONPATH \
 python -m llmc \
---config configs/quantization/SmoothQuant/smoothquant_llama_w8a8_fakequant_eval.yml
+--config ../configs/quantization/methods/SmoothQuant/smoothquant_w_a.yml \
 ```
-Under scripts file folder, llmc also provides a lot of running [scripts](https://github.com/ModelTC/llmc/tree/main/scripts) for your reference
+LLMC provides many [algorithm configuration files](https://github.com/anonymous-emnlp123/llmc/tree/main/configs/quantization/methods) in the `configs/quantization/methods` directory for reference.
 
 ```
 #!/bin/bash
@@ -94,7 +94,7 @@ task_name=smoothquant_llama_w8a8_fakequant_eval # Set task_name, the file name u
 # Select a config to run.
 nohup \
 python -m llmc \
---config ../configs/quantization/SmoothQuant/smoothquant_llama_w8a8_fakequant_eval.yml \
+--config ../configs/quantization/methods/SmoothQuant/smoothquant_w_a.yml \
 > ${task_name}.log 2>&1 &
 
 echo $! > ${task_name}.pid
